@@ -1,0 +1,74 @@
+from flask import Flask, request, jsonify
+import logging
+
+app = Flask(__name__)
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Simulated server-side conversion logic
+DEFAULT_CONVERSION_RATE = 0.000020  # Example conversion rate: 1 fiat = 0.000020 BTC
+
+@app.route('/convert', methods=['POST'])
+def convert_to_bitcoin():
+    """
+    Converts a fiat currency amount to Bitcoin.
+
+    Expects a JSON payload with 'amount_fiat' and 'conversion_percentage'.
+    """
+    try:
+        data = request.get_json()
+
+        # Validate request payload
+        amount_fiat = float(data.get('amount_fiat'))
+        conversion_percentage = float(data.get('conversion_percentage', 0.05))  # Default to 5% if not provided
+
+        # Validate conversion percentage range
+        if not 0 <= conversion_percentage <= 1:
+            raise ValueError("Conversion percentage must be between 0 and 1.")
+
+        # Calculate the amount to be converted based on the provided percentage
+        amount_to_convert = amount_fiat * conversion_percentage
+
+        # Calculate the amount to be kept in the bank account
+        amount_to_keep = amount_fiat - amount_to_convert
+
+        # Simulate server response for the conversion
+        bitcoin_amount = amount_to_convert * DEFAULT_CONVERSION_RATE
+
+        response = {
+            'amount_fiat': amount_fiat,
+            'amount_to_keep': amount_to_keep,
+            'amount_converted': bitcoin_amount,
+            'conversion_rate': DEFAULT_CONVERSION_RATE
+        }
+
+        return jsonify(response), 200
+
+    except (ValueError, TypeError) as e:
+        logging.error(f"Invalid input: {e}")
+        return jsonify({'error': 'Invalid input. Please provide a valid amount_fiat and conversion_percentage.'}), 400
+
+@app.route('/documentation', methods=['GET'])
+def get_documentation():
+    """
+    Returns documentation for the '/convert' API endpoint.
+    """
+    documentation = {
+        'endpoint': '/convert',
+        'method': 'POST',
+        'payload_format': {'amount_fiat': 'float', 'conversion_percentage': 'float (optional)'},
+        'description': 'Converts a fiat currency amount to Bitcoin.',
+        'example_payload': {'amount_fiat': 100, 'conversion_percentage': 0.1},
+        'response_format': {
+            'amount_fiat': 'float',
+            'amount_to_keep': 'float',
+            'amount_converted': 'float',
+            'conversion_rate': 'float'
+        }
+    }
+
+    return jsonify(documentation), 200
+
+if __name__ == '__main__':
+    app.run(debug=False)
