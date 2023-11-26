@@ -7,7 +7,32 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Simulated server-side conversion logic
-DEFAULT_CONVERSION_RATE = 0.000020  # Example conversion rate: 1 fiat = 0.000020 BTC
+CONVERSION_RATE = 0.000020  # Example conversion rate: 1 fiat = 0.000020 BTC
+
+# Default percentage to be converted to Bitcoin
+DEFAULT_PERCENTAGE = 0.05
+
+# Merchant's preset conversion percentage (initially set to the default)
+merchant_conversion_percentage = DEFAULT_PERCENTAGE
+
+MERCHANT_PRESETS = [0.10, 0.15, 0.25, 0.50, 0.75, 0.80]
+
+def set_merchant_percentage(preset=None):
+    """
+    Sets the merchant's conversion percentage.
+    """
+    global merchant_conversion_percentage
+
+    if preset is not None:
+        if preset in MERCHANT_PRESETS:
+            merchant_conversion_percentage = preset
+            logging.info(f"Merchant's conversion percentage set to {merchant_conversion_percentage * 100}%.")
+        else:
+            logging.warning("Invalid preset. Using the default percentage.")
+    else:
+        # Use a default or random preset logic (you can replace this with your logic)
+        merchant_conversion_percentage = DEFAULT_PERCENTAGE
+        logging.info(f"Using default conversion percentage: {merchant_conversion_percentage * 100}%.")
 
 @app.route('/convert', methods=['POST'])
 def convert_to_bitcoin():
@@ -19,56 +44,35 @@ def convert_to_bitcoin():
     try:
         data = request.get_json()
 
-        # Validate request payload
+        # Validate and extract input data
         amount_fiat = float(data.get('amount_fiat'))
-        conversion_percentage = float(data.get('conversion_percentage', 0.05))  # Default to 5% if not provided
+        conversion_percentage = float(data.get('conversion_percentage', None))
 
-        # Validate conversion percentage range
-        if not 0 <= conversion_percentage <= 1:
-            raise ValueError("Conversion percentage must be between 0 and 1.")
+        # Set the merchant's conversion percentage
+        set_merchant_percentage(conversion_percentage)
 
         # Calculate the amount to be converted based on the provided percentage
-        amount_to_convert = amount_fiat * conversion_percentage
+        amount_to_convert = amount_fiat * merchant_conversion_percentage
 
         # Calculate the amount to be kept in the bank account
         amount_to_keep = amount_fiat - amount_to_convert
 
         # Simulate server response for the conversion
-        bitcoin_amount = amount_to_convert * DEFAULT_CONVERSION_RATE
+        bitcoin_amount = amount_to_convert * CONVERSION_RATE
 
         response = {
             'amount_fiat': amount_fiat,
             'amount_to_keep': amount_to_keep,
             'amount_converted': bitcoin_amount,
-            'conversion_rate': DEFAULT_CONVERSION_RATE
+            'conversion_rate': CONVERSION_RATE,
+            'merchant_conversion_percentage': merchant_conversion_percentage
         }
 
         return jsonify(response), 200
 
-    except (ValueError, TypeError) as e:
+    except ValueError as e:
         logging.error(f"Invalid input: {e}")
         return jsonify({'error': 'Invalid input. Please provide a valid amount_fiat and conversion_percentage.'}), 400
 
-@app.route('/documentation', methods=['GET'])
-def get_documentation():
-    """
-    Returns documentation for the '/convert' API endpoint.
-    """
-    documentation = {
-        'endpoint': '/convert',
-        'method': 'POST',
-        'payload_format': {'amount_fiat': 'float', 'conversion_percentage': 'float (optional)'},
-        'description': 'Converts a fiat currency amount to Bitcoin.',
-        'example_payload': {'amount_fiat': 100, 'conversion_percentage': 0.1},
-        'response_format': {
-            'amount_fiat': 'float',
-            'amount_to_keep': 'float',
-            'amount_converted': 'float',
-            'conversion_rate': 'float'
-        }
-    }
-
-    return jsonify(documentation), 200
-
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
