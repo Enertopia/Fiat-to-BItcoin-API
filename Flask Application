@@ -1,3 +1,6 @@
+"""
+Copyright (c) 2023 Emiliano German Solazzi Griminger. All rights reserved.
+"""
 
 from flask import Flask, request, jsonify
 import logging
@@ -22,6 +25,31 @@ DEFAULT_PERCENTAGE = 0.05
 # Merchant's preset conversion percentage (initially set to the default)
 merchant_conversion_percentage = DEFAULT_PERCENTAGE
 
+def validate_input(data):
+    """
+    Validate and extract input data.
+
+    Args:
+        data (dict): JSON payload with 'amount_fiat' and 'conversion_percentage'.
+
+    Returns:
+        Tuple[float, float]: Amount in fiat and conversion percentage.
+   
+    Raises:
+        ValueError: If input is invalid.
+    """
+    try:
+        amount_fiat = float(data.get('amount_fiat'))
+        conversion_percentage = float(data.get('conversion_percentage', DEFAULT_PERCENTAGE))
+
+        if not 0 <= conversion_percentage <= 1:
+            raise ValueError("Conversion percentage must be between 0 and 1.")
+
+        return amount_fiat, conversion_percentage
+
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid input: {e}")
+
 @app.route('/convert', methods=['POST'])
 def convert_to_bitcoin():
     """
@@ -31,31 +59,19 @@ def convert_to_bitcoin():
     """
     try:
         data = request.get_json()
-       
-        # Validate and extract input data
-        amount_fiat = float(data.get('amount_fiat'))
-        conversion_percentage = data.get('conversion_percentage', DEFAULT_PERCENTAGE)
-       
-        # Validate conversion percentage range
-        if not 0 <= conversion_percentage <= 1:
-            raise ValueError("Conversion percentage must be between 0 and 1.")
-       
-        # Calculate the total amount to be converted
+        amount_fiat, conversion_percentage = validate_input(data)
+
         total_amount_to_convert = amount_fiat * conversion_percentage
-       
-        # Deduct the total amount from the bank account
+
         global BANK_ACCOUNT_BALANCE
         BANK_ACCOUNT_BALANCE -= total_amount_to_convert
-       
-        # Calculate the amounts to be split between wallet and bank account
+
         amount_to_wallet = total_amount_to_convert * CONVERSION_RATE
         amount_to_bank_account = amount_fiat - total_amount_to_convert
-       
-        # Add the converted Bitcoin to the wallet
+
         global WALLET_BALANCE
         WALLET_BALANCE += amount_to_wallet
-       
-        # Simulate server response for the conversion
+
         response = {
             'amount_fiat': amount_fiat,
             'amount_to_wallet': amount_to_wallet,
@@ -68,12 +84,11 @@ def convert_to_bitcoin():
 
         return jsonify(response), 200
 
-    except (ValueError, TypeError) as e:
+    except ValueError as e:
         logging.error(f"Invalid input: {e}")
-        return jsonify({'error': f'Invalid input: {e}'}), 400
+        return jsonify({'error': str(e)}), 400
 
 if __name__ == '__main__':
     # Use a production-ready web server like Gunicorn or uWSGI for deployment
     app.run(host='0.0.0.0', port=3000, debug=False)
-
 
