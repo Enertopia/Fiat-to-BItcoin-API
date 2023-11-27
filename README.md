@@ -1,2 +1,2 @@
-# Fiat-to-BItcoin-API
+# Fiat-to-Bitcoin-API
 Dynamic Bitcoin Conversion
