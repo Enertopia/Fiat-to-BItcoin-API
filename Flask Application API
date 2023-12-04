@@ -10,8 +10,12 @@ app = Flask(__name__)
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Simulated server-side conversion logic
+# Constants
 CONVERSION_RATE = 0.000020  # Example conversion rate: 1 fiat = 0.000020 BTC
+DEFAULT_PERCENTAGE = 0.05  # Example default conversion percentage
+
+# Merchant's preset conversion percentage (initially set to the default)
+merchant_conversion_percentage = DEFAULT_PERCENTAGE
 
 # Placeholder for a bank account balance (in fiat)
 BANK_ACCOUNT_BALANCE = 100000  # Example starting balance: $100,000
@@ -19,22 +23,13 @@ BANK_ACCOUNT_BALANCE = 100000  # Example starting balance: $100,000
 # Placeholder for a Bitcoin wallet balance
 WALLET_BALANCE = 0  # Example starting balance: 0 BTC
 
-# Default percentage to be converted to Bitcoin
-DEFAULT_PERCENTAGE = 0.05
-
-# Merchant's preset conversion percentage (initially set to the default)
-merchant_conversion_percentage = DEFAULT_PERCENTAGE
-
 def validate_input(data):
     """
     Validate and extract input data.
-
     Args:
         data (dict): JSON payload with 'amount_fiat' and 'conversion_percentage'.
-
     Returns:
         Tuple[float, float]: Amount in fiat and conversion percentage.
-   
     Raises:
         ValueError: If input is invalid.
     """
@@ -50,39 +45,49 @@ def validate_input(data):
     except (ValueError, TypeError) as e:
         raise ValueError(f"Invalid input: {e}")
 
+def convert_fiat_to_bitcoin(amount_fiat, conversion_percentage):
+    """
+    Converts a fiat currency amount to Bitcoin.
+    Args:
+        amount_fiat (float): Amount in fiat currency.
+        conversion_percentage (float): Conversion percentage.
+    Returns:
+        dict: Conversion details.
+    """
+    total_amount_to_convert = amount_fiat * conversion_percentage
+
+    global BANK_ACCOUNT_BALANCE
+    BANK_ACCOUNT_BALANCE -= total_amount_to_convert
+
+    amount_to_wallet = total_amount_to_convert * CONVERSION_RATE
+    amount_to_bank_account = amount_fiat - total_amount_to_convert
+
+    global WALLET_BALANCE
+    WALLET_BALANCE += amount_to_wallet
+
+    conversion_details = {
+        'amount_fiat': amount_fiat,
+        'amount_to_wallet': amount_to_wallet,
+        'amount_to_bank_account': amount_to_bank_account,
+        'conversion_rate': CONVERSION_RATE,
+        'merchant_conversion_percentage': conversion_percentage,
+        'bank_account_balance': BANK_ACCOUNT_BALANCE,
+        'wallet_balance': WALLET_BALANCE
+    }
+
+    return conversion_details
+
 @app.route('/convert', methods=['POST'])
 def convert_to_bitcoin():
     """
     Converts a fiat currency amount to Bitcoin.
-
     Expects a JSON payload with 'amount_fiat' and 'conversion_percentage'.
     """
     try:
         data = request.get_json()
         amount_fiat, conversion_percentage = validate_input(data)
-
-        total_amount_to_convert = amount_fiat * conversion_percentage
-
-        global BANK_ACCOUNT_BALANCE
-        BANK_ACCOUNT_BALANCE -= total_amount_to_convert
-
-        amount_to_wallet = total_amount_to_convert * CONVERSION_RATE
-        amount_to_bank_account = amount_fiat - total_amount_to_convert
-
-        global WALLET_BALANCE
-        WALLET_BALANCE += amount_to_wallet
-
-        response = {
-            'amount_fiat': amount_fiat,
-            'amount_to_wallet': amount_to_wallet,
-            'amount_to_bank_account': amount_to_bank_account,
-            'conversion_rate': CONVERSION_RATE,
-            'merchant_conversion_percentage': conversion_percentage,
-            'bank_account_balance': BANK_ACCOUNT_BALANCE,
-            'wallet_balance': WALLET_BALANCE
-        }
-
-        return jsonify(response), 200
+        conversion_details = convert_fiat_to_bitcoin(amount_fiat, conversion_percentage)
+        return jsonify(conversion_details), 200
 
     except ValueError as e:
         logging.error(f"Invalid input: {e}")
@@ -91,4 +96,3 @@ def convert_to_bitcoin():
 if __name__ == '__main__':
     # Use a production-ready web server like Gunicorn or uWSGI for deployment
     app.run(host='0.0.0.0', port=3000, debug=False)
-
